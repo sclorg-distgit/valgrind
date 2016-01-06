@@ -1,0 +1,81 @@
+Index: mpi/Makefile.am
+===================================================================
+--- valgrind/mpi/Makefile.am	(revision 12965)
++++ valgrind/mpi/Makefile.am	(working copy)
+@@ -1,15 +1,13 @@
+ include $(top_srcdir)/Makefile.all.am
+ 
+-# HACK WARNING: automake isn't good at supporting non-$(CC) compilers.
+-# But we need to use $(MPI_CC) for the MPI stuff.  So we have this mpi stuff
+-# in its own directory so we can use the following blunt instruments, which
+-# override the C compiler and all the default flags.
+-CC = $(MPI_CC)
++# HACK WARNING: We like to use the MPI_CC CFLAGS and LDFLAGS but don't
++# actually want to link against libmpi.  The wrapper is generic and loaded
++# through LD_PRELOAD into the program already using libmpi.
+ DEFS =
+ DEFAULT_INCLUDES =
+ CPPFLAGS =
+-CFLAGS =
+-LDFLAGS =
++CFLAGS = $(shell $(MPI_CC) -showme:compile)
++LDFLAGS = $(shell $(MPI_CC) -showme:link | sed 's/ -lmpi //g')
+ 
+ EXTRA_DIST = \
+ 	mpiwrap_type_test.c
+--- valgrind-3.8.0/mpi/Makefile.in.orig	2012-09-12 12:04:46.084508623 +0200
++++ valgrind-3.8.0/mpi/Makefile.in	2012-09-12 12:05:56.110800265 +0200
+@@ -108,17 +108,12 @@
+ AWK = @AWK@
+ BOOST_CFLAGS = @BOOST_CFLAGS@
+ BOOST_LIBS = @BOOST_LIBS@
+-
+-# HACK WARNING: automake isn't good at supporting non-$(CC) compilers.
+-# But we need to use $(MPI_CC) for the MPI stuff.  So we have this mpi stuff
+-# in its own directory so we can use the following blunt instruments, which
+-# override the C compiler and all the default flags.
+-CC = $(MPI_CC)
++CC = @CC@
+ CCAS = @CCAS@
+ CCASDEPMODE = @CCASDEPMODE@
+ CCASFLAGS = @CCASFLAGS@
+ CCDEPMODE = @CCDEPMODE@
+-CFLAGS = 
++CFLAGS = $(shell $(MPI_CC) -showme:compile)
+ CFLAGS_MPI = @CFLAGS_MPI@
+ CPP = @CPP@
+ CPPFLAGS = 
+@@ -127,6 +122,10 @@
+ CXXFLAGS = @CXXFLAGS@
+ CYGPATH_W = @CYGPATH_W@
+ DEFAULT_SUPP = @DEFAULT_SUPP@
++
++# HACK WARNING: We like to use the MPI_CC CFLAGS and LDFLAGS but don't
++# actually want to link against libmpi.  The wrapper is generic and loaded
++# through LD_PRELOAD into the program already using libmpi.
+ DEFS = 
+ DEPDIR = @DEPDIR@
+ DIFF = @DIFF@
+@@ -156,7 +155,7 @@
+ INSTALL_PROGRAM = @INSTALL_PROGRAM@
+ INSTALL_SCRIPT = @INSTALL_SCRIPT@
+ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
+-LDFLAGS = 
++LDFLAGS = $(shell $(MPI_CC) -showme:link | sed 's/ -lmpi //g')
+ LDFLAGS_MPI = @LDFLAGS_MPI@
+ LIBOBJS = @LIBOBJS@
+ LIBS = @LIBS@
+Index: mpi/libmpiwrap.c
+===================================================================
+--- valgrind/mpi/libmpiwrap.c	(revision 12965)
++++ valgrind/mpi/libmpiwrap.c	(working copy)
+@@ -114,6 +114,9 @@
+    be used with.  The configure system will tell us what the path to
+    the chosen MPI implementation is, via -I.. to the compiler. */
+ #include "mpi.h"
++#ifdef MPI_LOGICAL
++extern __typeof(ompi_mpi_logical) ompi_mpi_logical __attribute__((weak));
++#endif
+ 
+ /* Where are API symbols?
+    Open MPI      lib/libmpi.so,   soname = libmpi.so.0
