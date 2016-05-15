@@ -1,0 +1,55 @@
+Index: valgrind/none/tests/arm64/memory.c
+===================================================================
+--- valgrind/none/tests/arm64/memory.c	(revision 15827)
++++ valgrind/none/tests/arm64/memory.c	(working copy)
+@@ -157,18 +157,18 @@
+ 
+ ////////////////////////////////////////////////////////////////
+ // This is a bit tricky.  We load the value from just before and
+-// just after the actual instruction.  Because TESTINSN2_hide2 
+-// generates two fixed insns either side of the test insn, these 
+-// should be constant and hence "safe" to check.
++// just after the actual instruction.  So we place a couple of
++// nop insns either side of the test insn, these should "safe"
++// to check.
+ 
+ printf("LDR (literal, int reg)\n");
+-TESTINST2_hide2("xyzzy00: ldr  x21, xyzzy00 - 8", AREA_MID, x21,x22,0);
+-TESTINST2_hide2("xyzzy01: ldr  x21, xyzzy01 + 0", AREA_MID, x21,x22,0);
+-TESTINST2_hide2("xyzzy02: ldr  x21, xyzzy02 + 8", AREA_MID, x21,x22,0);
++TESTINST2_hide2("nop; nop; nop; xyzzy00: ldr  x21, xyzzy00 - 8; nop; nop; nop", AREA_MID, x21,x22,0);
++TESTINST2_hide2("nop; nop; nop; xyzzy01: ldr  x21, xyzzy01 + 0; nop; nop; nop", AREA_MID, x21,x22,0);
++TESTINST2_hide2("nop; nop; nop; xyzzy02: ldr  x21, xyzzy02 + 8; nop; nop; nop", AREA_MID, x21,x22,0);
+ 
+-TESTINST2_hide2("xyzzy03: ldr  x21, xyzzy03 - 4", AREA_MID, x21,x22,0);
+-TESTINST2_hide2("xyzzy04: ldr  x21, xyzzy04 + 0", AREA_MID, x21,x22,0);
+-TESTINST2_hide2("xyzzy05: ldr  x21, xyzzy05 + 4", AREA_MID, x21,x22,0);
++TESTINST2_hide2("nop; nop; nop; xyzzy03: ldr  x21, xyzzy03 - 4; nop; nop; nop", AREA_MID, x21,x22,0);
++TESTINST2_hide2("nop; nop; nop; xyzzy04: ldr  x21, xyzzy04 + 0; nop; nop; nop", AREA_MID, x21,x22,0);
++TESTINST2_hide2("nop; nop; nop; xyzzy05: ldr  x21, xyzzy05 + 4; nop; nop; nop", AREA_MID, x21,x22,0);
+ 
+ ////////////////////////////////////////////////////////////////
+ printf("{LD,ST}R (integer register) (entirely MISSING)\n");
+Index: valgrind/none/tests/arm64/memory.stdout.exp
+===================================================================
+--- valgrind/none/tests/arm64/memory.stdout.exp	(revision 15827)
++++ valgrind/none/tests/arm64/memory.stdout.exp	(working copy)
+@@ -21,12 +21,12 @@
+ ldp w21, w28, [x22, #-40] ; add x21,x21,x28 :: rd 000000019b999794 rn (hidden), cin 0, nzcv 00000000     
+ ldp w21, w28, [x22, #-40] ; eor x21,x21,x28 :: rd 0000000004040404 rn (hidden), cin 0, nzcv 00000000     
+ LDR (literal, int reg)
+-xyzzy00: ldr  x21, xyzzy00 - 8 :: rd aa0003f6d51b4203 rn (hidden), cin 0, nzcv 00000000     
+-xyzzy01: ldr  x21, xyzzy01 + 0 :: rd aa1503e258000015 rn (hidden), cin 0, nzcv 00000000     
+-xyzzy02: ldr  x21, xyzzy02 + 8 :: rd 911e43a0d53b4201 rn (hidden), cin 0, nzcv 00000000     
+-xyzzy03: ldr  x21, xyzzy03 - 4 :: rd 58fffff5aa0003f6 rn (hidden), cin 0, nzcv 00000000     
+-xyzzy04: ldr  x21, xyzzy04 + 0 :: rd aa1503e258000015 rn (hidden), cin 0, nzcv 00000000     
+-xyzzy05: ldr  x21, xyzzy05 + 4 :: rd d53b4201aa1503e2 rn (hidden), cin 0, nzcv 00000000     
++nop; nop; nop; xyzzy00: ldr  x21, xyzzy00 - 8; nop; nop; nop :: rd d503201fd503201f rn (hidden), cin 0, nzcv 00000000     
++nop; nop; nop; xyzzy01: ldr  x21, xyzzy01 + 0; nop; nop; nop :: rd d503201f58000015 rn (hidden), cin 0, nzcv 00000000     
++nop; nop; nop; xyzzy02: ldr  x21, xyzzy02 + 8; nop; nop; nop :: rd d503201fd503201f rn (hidden), cin 0, nzcv 00000000     
++nop; nop; nop; xyzzy03: ldr  x21, xyzzy03 - 4; nop; nop; nop :: rd 58fffff5d503201f rn (hidden), cin 0, nzcv 00000000     
++nop; nop; nop; xyzzy04: ldr  x21, xyzzy04 + 0; nop; nop; nop :: rd d503201f58000015 rn (hidden), cin 0, nzcv 00000000     
++nop; nop; nop; xyzzy05: ldr  x21, xyzzy05 + 4; nop; nop; nop :: rd d503201fd503201f rn (hidden), cin 0, nzcv 00000000     
+ {LD,ST}R (integer register) (entirely MISSING)
+ LDRS{B,H,W} (uimm12)
+ ldrsw x21, [x22, #24] :: rd ffffffff8b8a8988 rn (hidden), cin 0, nzcv 00000000     

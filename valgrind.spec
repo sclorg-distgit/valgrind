@@ -2,8 +2,8 @@
 
 Summary: Tool for finding memory management bugs in programs
 Name: %{?scl_prefix}valgrind
-Version: 3.10.1
-Release: 15%{?dist}
+Version: 3.11.0
+Release: 19%{?dist}
 Epoch: 1
 License: GPLv2+
 URL: http://www.valgrind.org/
@@ -38,10 +38,11 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %global build_openmpi 0
 %endif
 
-# Don't run dwz or generate minisymtab, valgrind doesn't handle compressed
-# DWARF very well and it might read its own vgpreload libraries. Generating
-# minisymtabs doesn't really work for the staticly linked tools.
-%define _find_debuginfo_dwz_opts %{nil}
+# Generating minisymtabs doesn't really work for the staticly linked
+# tools. Note (below) that we don't strip the vgpreload libraries at all
+# because valgrind might read and need the debuginfo in those (client)
+# libraries for better error reporting and sometimes correctly unwinding.
+# So those will already have their full symbol table.
 %undefine _include_minidebuginfo
 
 Source0: http://www.valgrind.org/downloads/valgrind-%{version}.tar.bz2
@@ -52,69 +53,81 @@ Patch1: valgrind-3.9.0-cachegrind-improvements.patch
 # KDE#211352 - helgrind races in helgrind's own mythread_wrapper
 Patch2: valgrind-3.9.0-helgrind-race-supp.patch
 
-# undef st_atime, st_mtime and st_ctime. Unknown why this is (still?) needed.
-Patch3: valgrind-3.9.0-stat_h.patch
-
 # Make ld.so supressions slightly less specific.
-Patch4: valgrind-3.9.0-ldso-supp.patch
+Patch3: valgrind-3.9.0-ldso-supp.patch
 
-# KDE#342795 Internal glibc __GI_mempcpy call should be intercepted
-Patch5: valgrind-3.10.1-mempcpy.patch
+# KDE#353083 arm64 doesn't implement various xattr system calls.
+Patch4: valgrind-3.11.0-arm64-xattr.patch
 
-# KDE#343802 - s390x memcheck reports spurious conditional jump
-Patch6: valgrind-3.10-s390-spechelper.patch
+# KDE#353084 arm64 doesn't support sigpending system call.
+Patch5: valgrind-3.11.0-arm64-sigpending.patch
 
-# KDE#342038, KDE#343732, KDE#343733, KDE#344007, KDE#344307
-# mbind, get_mempolicy, set_mempolicy, flock, setgid, msgget, msgctl,
-# msgrcv, msgsnd, accept4, mount, umount2
-Patch7: valgrind-3.10.1-aarch64-syscalls.patch
-
-# KDE#344007 ppc64 missing accept4 syscall
-Patch8: valgrind-3.10.1-ppc64-accept4.patch
-
-# KDE#344279 - syscall sendmmsg on arm64 (269) and ppc32/64 (349) unhandled
-# KDE#344295 - syscall recvmmsg on arm64 (243) and ppc32/64 (343) unhandled
-# KDE#344318 - socketcall should wrap recvmmsg and sendmmsg
-Patch9: valgrind-3.10.1-send-recv-mmsg.patch
-
-# Upstream valgrind svn r14530
-Patch10: valgrind-3.10.1-glibc-version-check.patch
-
-# Upstream valgrind svn r15133
-Patch11: valgrind-3.10-1-ppc64-sigpending.patch
-
-# KDE#343012 - Unhandled syscall 319 (memfd_create)
-Patch12: valgrind-3.10.1-memfd_create.patch
-
-# KDE#347389 - Add support for the syncfs system call.
-Patch13: valgrind-3.10.1-syncfs.patch
-
-# Upstream valgrind svn r15304
-Patch14: valgrind-3.10.1-arm-process_vm_readv_writev.patch
-
-# Upstream valgrind svn r15305
-Patch15: valgrind-3.10.1-fno-ipa-icf.patch
-
-# Upstream valgrind svn r14780 and r15308
-Patch16: valgrind-3.10.1-demangle-q.patch
-
-# KDE#345928 callstack only contains current function for small stacks
-Patch17: valgrind-3.10.1-cfi-redzone.patch
-
-# KDE#344499 Fix compilation for Linux kernel >= 4.
-Patch18: valgrind-3.10.1-kernel-4.0.patch
-
-# KDE#349941 di_notify_mmap might create wrong start/size DebugInfoMapping
-Patch19: valgrind-3.10.1-di_notify_mmap.patch
-
-# KDE#349828 memcpy intercepts memmove causing src/dst overlap error
-Patch20: valgrind-3.10.1-memmove-ld_so-ppc64.patch
-
-# KDE#352130 helgrind reports false races for printfs using mempcpy
-Patch21: valgrind-3.10.1-helgrind-supp-io-mempcpy.patch
+# KDE#353370 don't advertise RDRAND in cpuid for Core-i7-4910-like avx2
+Patch6: valgrind-3.11.0-no-rdrand.patch
 
 # KDE#278744 cvtps2pd with redundant RexW
-Patch22: valgrind-3.11.0-rexw-cvtps2pd.patch
+Patch7: valgrind-3.11.0-rexw-cvtps2pd.patch
+
+# KDE#353680 Crash with certain glibc versions due to non-implemented TBEGIN
+Patch8: valgrind-3.11.0-s390-hwcap.patch
+
+# KDE#355188 valgrind should intercept all malloc related global functions
+Patch9: valgrind-3.11.0-wrapmalloc.patch
+
+# RHBZ#1283774 - Valgrind: FATAL: aspacem assertion failed
+Patch10: valgrind-3.11.0-aspacemgr.patch
+
+# KDE#358213 - helgrind bar_bad testcase hangs with new glibc pthread barrier
+Patch11: valgrind-3.11.0-pthread_barrier.patch
+
+# KDE#357833 - Valgrind is broken on recent linux kernel (RLIMIT_DATA)
+Patch12: valgrind-3.11.0-rlimit_data.patch
+
+# KDE#357887 VG_(fclose) ought to close the file, you silly.
+Patch13: valgrind-3.11.0-fclose.patch
+
+# KDE#357871 Fix helgrind wrapper of pthread_spin_destroy
+Patch14: valgrind-3.11.0-pthread_spin_destroy.patch
+
+# KDE#358030 Support direct socket calls on x86 32bit (new in linux 4.3)
+Patch15: valgrind-3.11.0-socketcall-x86-linux.patch
+
+# KDE#356044 Dwarf line info reader misinterprets is_stmt register
+Patch16: valgrind-3.11.0-is_stmt.patch
+
+# Fix incorrect (or infinite loop) unwind on RHEL7 x86 32 bits. (svn r15729)
+# Fix incorrect (or infinite loop) unwind on RHEL7 amd64 64 bits. (svn r15794)
+Patch17: valgrind-3.11.0-x86_unwind.patch
+
+# KDE#358478 drd/tests/std_thread.cpp doesn't build with GCC6
+Patch18: valgrind-3.11.0-drd_std_thread.patch
+
+# KDE#359201 futex syscall skips argument 5 if op is FUTEX_WAIT_BITSET
+Patch19: valgrind-3.11.0-futex.patch
+
+# KDE#359289 s390: Implement popcnt insn.
+Patch20: valgrind-3.11.0-s390x-popcnt.patch
+
+# KDE#359703 s390: wire up separate socketcalls system calls
+Patch21: valgrind-3.11.0-s390-separate-socketcalls.patch
+
+# KDE#359733 amd64 implement ld.so strchr/index override like x86
+Patch22: valgrind-3.11.0-amd64-ld-index.patch
+
+# KDE#359871 Incorrect mask handling in ppoll
+Patch23: valgrind-3.11.0-ppoll-mask.patch
+
+# KDE#359503 - Add missing syscalls for aarch64 (arm64)
+Patch24: valgrind-3.11.0-arm64-more-syscalls.patch
+
+# Workaround for KDE#345307 - still reachable memory in libstdc++ from gcc 5
+Patch25: valgrind-3.11.0-libstdc++-supp.patch
+
+# KDE#360519 - none/tests/arm64/memory.vgtest might fail with newer gcc
+Patch26: valgrind-3.11.0-arm64-ldr-literal-test.patch
+
+# KDE#360425 - arm64 unsupported instruction ldpsw
+Patch27: valgrind-3.11.0-arm64-ldpsw.patch
 
 # DTS specific.
 Patch1001: valgrind-3.9.0-mpiwrapper.patch
@@ -146,6 +159,12 @@ BuildRequires: %{?scl_prefix}binutils
 # gdbserver_tests/filter_make_empty uses ps in test
 BuildRequires: procps
 
+# Some testcases require g++ to build
+BuildRequires: gcc-c++
+
+# check_headers_and_includes uses Getopt::Long
+BuildRequires: perl(Getopt::Long)
+
 %{?scl:Requires:%scl_runtime}
 
 # We need to fixup selinux file context when doing a scl build.
@@ -156,7 +175,6 @@ BuildRequires: procps
 %endif
 
 ExclusiveArch: %{ix86} x86_64 ppc ppc64 ppc64le s390x armv7hl aarch64
-
 %ifarch %{ix86}
 %define valarch x86
 %define valsecarch %{nil}
@@ -246,6 +264,22 @@ Valgrind User Manual for details.
 %patch20 -p1
 %patch21 -p1
 %patch22 -p1
+%patch23 -p1
+
+# Older patch might not have created these (expected) empty files (patch23)
+touch none/tests/ppoll_alarm.stderr.exp
+touch none/tests/ppoll_alarm.stdout.exp
+touch none/tests/pselect_alarm.stderr.exp
+touch none/tests/pselect_alarm.stdout.exp
+
+%patch24 -p1
+
+# New filter (from patch24) needs to be executable.
+chmod 755 memcheck/tests/arm64-linux/filter_stderr
+
+%patch25 -p1
+%patch26 -p1
+%patch27 -p1
 
 # DTS Only needed for RHEL6 since that has diffrent openmpi and compat-openmpi
 # packages that might differ per minor version.
@@ -316,6 +350,19 @@ mkdir docs/installed
 mv $RPM_BUILD_ROOT%{_datadir}/doc/valgrind/* docs/installed/
 rm -f docs/installed/*.ps
 
+# We want the MPI wrapper installed under the openmpi libdir so the script
+# generating the MPI library requires picks them up and sets up the right
+# openmpi libmpi.so requires. Install symlinks in the original/upstream
+# location for backwards compatibility.
+%if %{build_openmpi}
+pushd $RPM_BUILD_ROOT%{_libdir}
+mkdir -p openmpi/valgrind
+cd valgrind
+mv libmpiwrap-%{valarch}-linux.so ../openmpi/valgrind/
+ln -s ../openmpi/valgrind/libmpiwrap-%{valarch}-linux.so
+popd
+%endif
+
 %if "%{valsecarch}" != ""
 pushd $RPM_BUILD_ROOT%{_libdir}/valgrind/
 rm -f *-%{valsecarch}-* || :
@@ -331,7 +378,7 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/valgrind/*.supp.in
 %ifarch %{ix86} x86_64
 # To avoid multilib clashes in between i?86 and x86_64,
 # tweak installed <valgrind/config.h> a little bit.
-for i in HAVE_PTHREAD_CREATE_GLIBC_2_0 HAVE_PTRACE_GETREGS \
+for i in HAVE_PTHREAD_CREATE_GLIBC_2_0 HAVE_PTRACE_GETREGS HAVE_AS_AMD64_FXSAVE64 \
 %if 0%{?rhel} == 5
          HAVE_BUILTIN_ATOMIC HAVE_BUILTIN_ATOMIC_CXX \
 %endif
@@ -341,7 +388,18 @@ for i in HAVE_PTHREAD_CREATE_GLIBC_2_0 HAVE_PTRACE_GETREGS \
 done
 %endif
 
+# We don't want debuginfo generated for the vgpreload libraries.
+# Turn off execute bit so they aren't included in the debuginfo.list.
+# We'll turn the execute bit on again in %%files.
+chmod 644 $RPM_BUILD_ROOT%{_libdir}/valgrind/vgpreload*-%{valarch}-*so
+
 %check
+# Make sure some info about the system is in the build.log
+uname -a
+rpm -q glibc gcc %{?scl_prefix}binutils %{?scl_prefix}gdb
+LD_SHOW_AUXV=1 /bin/true
+cat /proc/cpuinfo
+
 # Make sure a basic binary runs.
 ./vg-in-place /bin/true
 
@@ -352,6 +410,9 @@ done
 make %{?_smp_mflags} CFLAGS="" check || :
 
 echo ===============TESTING===================
+# On arm the gdb integration tests hang for unknown reasons.
+# Only run the main tools tests.
+
 # XXX WORKAROUND for RHEL6 use nonexp-regtest so gdbserver_tests are not run.
 ./close_fds make nonexp-regtest || :
 
@@ -383,8 +444,20 @@ echo ===============END TESTING===============
 %doc docs/installed/html docs/installed/*.pdf
 %{_bindir}/*
 %dir %{_libdir}/valgrind
+# Install everything in the libdir except the .so and .a files.
+# The vgpreload so files might file mode adjustment (see below).
+# The libmpiwrap so files go in the valgrind-openmpi package.
+# The .a archives go into the valgrind-devel package.
 %{_libdir}/valgrind/*[^ao]
-%{_libdir}/valgrind/[^l]*o
+# Turn on executable bit again for vgpreload libraries.
+# Was disabled in %%install to prevent debuginfo stripping.
+%attr(0755,root,root) %{_libdir}/valgrind/vgpreload*-%{valarch}-*so
+# And install the symlinks to the secarch files if the exist.
+# These are separate from the above because %%attr doesn't work
+# on symlinks.
+%if "%{valsecarch}" != ""
+%{_libdir}/valgrind/vgpreload*-%{valsecarch}-*so
+%endif
 %{_mandir}/man1/*
 
 %files devel
@@ -398,6 +471,7 @@ echo ===============END TESTING===============
 %files openmpi
 %defattr(-,root,root)
 %dir %{_libdir}/valgrind
+%{_libdir}/openmpi/valgrind/libmpiwrap*.so
 %{_libdir}/valgrind/libmpiwrap*.so
 %endif
 
@@ -414,6 +488,25 @@ fi
 %endif
 
 %changelog
+* Fri Apr 01 2016 Mark Wielaard <mjw@redhat.com> - 3.11.0-19
+- Touch up empty .exp files. (#1323160)
+
+* Fri Apr 01 2016 Mark Wielaard <mjw@redhat.com> - 3.11.0-18
+- Refresh valgrind from fedora. (#1323160)
+
+* Wed Feb 24 2016 Mark Wielaard <mjw@redhat.com> - 3.11.0-11
+- Rebuilt against new buildroot.
+
+* Fri Jan 22 2016 Mark Wielaard <mjw@redhat.com> - 3.11.0-9
+- Fix valgrind-3.11.0-pthread_barrier.patch to apply with older patch.
+- Fix multilib issue in config.h with HAVE_AS_AMD64_FXSAVE64.
+
+* Thu Jan 21 2016 Mark Wielaard <mjw@redhat.com> - 3.11.0-8
+- Remerge with fedora to rebase to valgrind 3.11.0+ (#1290471)
+
+* Thu Jan 14 2016 Mark Wielaard <mjw@redhat.com> - 3.11.0-5
+- Merge with fedora to rebase to valgrind 3.11.0 (#1290471)
+
 * Tue Oct 13 2015 Mark Wielaard <mjw@redhat.com> - 3.10.1-15
 - Add valgrind-3.11.0-rexw-cvtps2pd.patch (#1268438)
 

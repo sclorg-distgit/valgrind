@@ -1,0 +1,21 @@
+commit 8c8306308e05e92de228de57e832c85fb976124b
+Author: florian <florian@a5019735-40e9-0310-863c-91ae7b9d1cf9>
+Date:   Tue Jan 12 14:32:05 2016 +0000
+
+    VG_(fclose) ought to close the file, you silly. Fixes BZ #357887.
+    
+    
+    git-svn-id: svn://svn.valgrind.org/valgrind/trunk@15755 a5019735-40e9-0310-863c-91ae7b9d1cf9
+
+diff --git a/coregrind/m_libcprint.c b/coregrind/m_libcprint.c
+index 1283de5..ce2c038 100644
+--- a/coregrind/m_libcprint.c
++++ b/coregrind/m_libcprint.c
+@@ -359,6 +359,7 @@ void VG_(fclose)( VgFile *fp )
+    if (fp->num_chars)
+       VG_(write)(fp->fd, fp->buf, fp->num_chars);
+ 
++   VG_(close)(fp->fd);
+    VG_(free)(fp);
+ }
+ 

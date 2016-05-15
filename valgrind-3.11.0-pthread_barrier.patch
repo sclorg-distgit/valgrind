@@ -1,0 +1,757 @@
+commit f4d91a5df8b749c6cdfec25e38a44c02c90ad4be
+Author: Mark Wielaard <mjw@redhat.com>
+Date:   Tue Jan 19 15:13:47 2016 +0100
+
+    Bug #358213 helgrind/drd pthread_barrier tests vs new glibc implementation
+    
+    glibc 2.23 will have a new pthread_barrier implementation.
+    This implementation reacts differently on bad usage of barriers.
+    Because of this the bar_bad testcase will hang indefinitely.
+    In particular pthread_barrier_destroy will hang when there are
+    still other threads waiting on a barrier. To solve this we add
+    extra threads to will "unblock" the hanging destroy by sleeping
+    for a while and then also waiting on the barrier, which will unblock
+    the destroy operation. Or if this is the last test, just exit
+    the whole program since we are done anyway. Also newer glibc is
+    more picky about destroying uninitialized barriers, we would crash
+    when zero filling, so we now one fill. Which doesn't crash, but
+    depending on glibc version might return an error or hang. Since
+    depending on version we now get slightly different error reports
+    there are now alternative exp files.
+    
+    Tested against glibc 2.17, glibc 2.22 and glibc 2.23-prerelease.
+
+diff --git a/drd/tests/Makefile.am b/drd/tests/Makefile.am
+index 2885391..cfd74d0 100644
+--- a/drd/tests/Makefile.am
++++ b/drd/tests/Makefile.am
+@@ -81,8 +81,10 @@ EXTRA_DIST =                                        \
+ 	atomic_var.stderr.exp			    \
+ 	atomic_var.vgtest			    \
+ 	bar_bad.stderr.exp			    \
++	bar_bad.stderr.exp-nohang		    \
+ 	bar_bad.vgtest				    \
+ 	bar_bad_xml.stderr.exp			    \
++	bar_bad_xml.stderr.exp-nohang		    \
+ 	bar_bad_xml.vgtest			    \
+ 	bar_trivial.stderr.exp			    \
+ 	bar_trivial.stdout.exp			    \
+diff --git a/drd/tests/bar_bad.stderr.exp b/drd/tests/bar_bad.stderr.exp
+index 75f121f..3581b08 100644
+--- a/drd/tests/bar_bad.stderr.exp
++++ b/drd/tests/bar_bad.stderr.exp
+@@ -34,16 +34,5 @@ barrier 0x........ was first observed at:
+ 
+ 
+ destroy a barrier that was never initialised
+-Not a barrier
+-   at 0x........: pthread_barrier_destroy (drd_pthread_intercepts.c:?)
+-   by 0x........: main (bar_bad.c:?)
+-
+-Destruction of barrier that is being waited upon: barrier 0x........
+-   at 0x........: free (vg_replace_malloc.c:...)
+-   by 0x........: main (bar_bad.c:?)
+-barrier 0x........ was first observed at:
+-   at 0x........: pthread_barrier_init (drd_pthread_intercepts.c:?)
+-   by 0x........: main (bar_bad.c:?)
+-
+ 
+-ERROR SUMMARY: 7 errors from 6 contexts (suppressed: 0 from 0)
++ERROR SUMMARY: 5 errors from 4 contexts (suppressed: 0 from 0)
+diff --git a/drd/tests/bar_bad.stderr.exp-nohang b/drd/tests/bar_bad.stderr.exp-nohang
+new file mode 100644
+index 0000000..44f9651
+--- /dev/null
++++ b/drd/tests/bar_bad.stderr.exp-nohang
+@@ -0,0 +1,42 @@
++
++
++initialise a barrier with zero count
++pthread_barrier_init: 'count' argument is zero: barrier 0x........
++   at 0x........: pthread_barrier_init (drd_pthread_intercepts.c:?)
++   by 0x........: main (bar_bad.c:?)
++
++
++initialise a barrier twice
++Barrier reinitialization: barrier 0x........
++   at 0x........: pthread_barrier_init (drd_pthread_intercepts.c:?)
++   by 0x........: main (bar_bad.c:?)
++barrier 0x........ was first observed at:
++   at 0x........: pthread_barrier_init (drd_pthread_intercepts.c:?)
++   by 0x........: main (bar_bad.c:?)
++
++
++initialise a barrier which has threads waiting on it
++Barrier reinitialization: barrier 0x........
++   at 0x........: pthread_barrier_init (drd_pthread_intercepts.c:?)
++   by 0x........: main (bar_bad.c:?)
++barrier 0x........ was first observed at:
++   at 0x........: pthread_barrier_init (drd_pthread_intercepts.c:?)
++   by 0x........: main (bar_bad.c:?)
++
++
++destroy a barrier that has waiting threads
++Destruction of a barrier with active waiters: barrier 0x........
++   at 0x........: pthread_barrier_destroy (drd_pthread_intercepts.c:?)
++   by 0x........: main (bar_bad.c:?)
++barrier 0x........ was first observed at:
++   at 0x........: pthread_barrier_init (drd_pthread_intercepts.c:?)
++   by 0x........: main (bar_bad.c:?)
++
++
++destroy a barrier that was never initialised
++Not a barrier
++   at 0x........: pthread_barrier_destroy (drd_pthread_intercepts.c:?)
++   by 0x........: main (bar_bad.c:?)
++
++
++ERROR SUMMARY: 6 errors from 5 contexts (suppressed: 0 from 0)
+diff --git a/drd/tests/bar_bad_xml.stderr.exp b/drd/tests/bar_bad_xml.stderr.exp
+index acb9656..8539f75 100644
+--- a/drd/tests/bar_bad_xml.stderr.exp
++++ b/drd/tests/bar_bad_xml.stderr.exp
+@@ -204,78 +204,6 @@ destroy a barrier that has waiting threads
+ 
+ 
+ destroy a barrier that was never initialised
+-<error>
+-  <unique>0x........</unique>
+-  <tid>...</tid>
+-  <kind>GenericErr</kind>
+-  <what>Not a barrier</what>
+-  <stack>
+-    <frame>
+-      <ip>0x........</ip>
+-      <obj>...</obj>
+-      <fn>pthread_barrier_destroy</fn>
+-      <dir>...</dir>
+-      <file>drd_pthread_intercepts.c</file>
+-      <line>...</line>
+-    </frame>
+-    <frame>
+-      <ip>0x........</ip>
+-      <obj>...</obj>
+-      <fn>main</fn>
+-      <dir>...</dir>
+-      <file>bar_bad.c</file>
+-      <line>...</line>
+-    </frame>
+-  </stack>
+-</error>
+-
+-<error>
+-  <unique>0x........</unique>
+-  <tid>...</tid>
+-  <kind>BarrierErr</kind>
+-  <what>Destruction of barrier that is being waited upon: barrier 0x........</what>
+-  <stack>
+-    <frame>
+-      <ip>0x........</ip>
+-      <obj>...</obj>
+-      <fn>free</fn>
+-      <dir>...</dir>
+-      <file>vg_replace_malloc.c</file>
+-      <line>...</line>
+-    </frame>
+-    <frame>
+-      <ip>0x........</ip>
+-      <obj>...</obj>
+-      <fn>main</fn>
+-      <dir>...</dir>
+-      <file>bar_bad.c</file>
+-      <line>...</line>
+-    </frame>
+-  </stack>
+-  <first_observed_at>
+-    <what>barrier</what>
+-    <address>0x........</address>
+-  <stack>
+-    <frame>
+-      <ip>0x........</ip>
+-      <obj>...</obj>
+-      <fn>pthread_barrier_init</fn>
+-      <dir>...</dir>
+-      <file>drd_pthread_intercepts.c</file>
+-      <line>...</line>
+-    </frame>
+-    <frame>
+-      <ip>0x........</ip>
+-      <obj>...</obj>
+-      <fn>main</fn>
+-      <dir>...</dir>
+-      <file>bar_bad.c</file>
+-      <line>...</line>
+-    </frame>
+-  </stack>
+-  </first_observed_at>
+-</error>
+-
+ 
+ <status>
+   <state>FINISHED</state>
+@@ -299,14 +227,6 @@ destroy a barrier that was never initialised
+     <count>...</count>
+     <unique>0x........</unique>
+   </pair>
+-  <pair>
+-    <count>...</count>
+-    <unique>0x........</unique>
+-  </pair>
+-  <pair>
+-    <count>...</count>
+-    <unique>0x........</unique>
+-  </pair>
+ </errorcounts>
+ 
+ <suppcounts>...</suppcounts>
+diff --git a/drd/tests/bar_bad_xml.stderr.exp-nohang b/drd/tests/bar_bad_xml.stderr.exp-nohang
+new file mode 100644
+index 0000000..a47cd60
+--- /dev/null
++++ b/drd/tests/bar_bad_xml.stderr.exp-nohang
+@@ -0,0 +1,264 @@
++<?xml version="1.0"?>
++
++<valgrindoutput>
++
++<protocolversion>4</protocolversion>
++<protocoltool>drd</protocoltool>
++
++<preamble>
++  <line>...</line>
++  <line>...</line>
++  <line>...</line>
++  <line>...</line>
++</preamble>
++
++<pid>...</pid>
++<ppid>...</ppid>
++<tool>drd</tool>
++
++<args>
++  <vargv>...</vargv>
++  <argv>
++    <exe>./../../helgrind/tests/bar_bad</exe>
++  </argv>
++</args>
++
++<status>
++  <state>RUNNING</state>
++  <time>...</time>
++</status>
++
++
++initialise a barrier with zero count
++<error>
++  <unique>0x........</unique>
++  <tid>...</tid>
++  <kind>BarrierErr</kind>
++  <what>pthread_barrier_init: 'count' argument is zero: barrier 0x........</what>
++  <stack>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>pthread_barrier_init</fn>
++      <dir>...</dir>
++      <file>drd_pthread_intercepts.c</file>
++      <line>...</line>
++    </frame>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>main</fn>
++      <dir>...</dir>
++      <file>bar_bad.c</file>
++      <line>...</line>
++    </frame>
++  </stack>
++</error>
++
++
++initialise a barrier twice
++<error>
++  <unique>0x........</unique>
++  <tid>...</tid>
++  <kind>BarrierErr</kind>
++  <what>Barrier reinitialization: barrier 0x........</what>
++  <stack>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>pthread_barrier_init</fn>
++      <dir>...</dir>
++      <file>drd_pthread_intercepts.c</file>
++      <line>...</line>
++    </frame>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>main</fn>
++      <dir>...</dir>
++      <file>bar_bad.c</file>
++      <line>...</line>
++    </frame>
++  </stack>
++  <first_observed_at>
++    <what>barrier</what>
++    <address>0x........</address>
++  <stack>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>pthread_barrier_init</fn>
++      <dir>...</dir>
++      <file>drd_pthread_intercepts.c</file>
++      <line>...</line>
++    </frame>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>main</fn>
++      <dir>...</dir>
++      <file>bar_bad.c</file>
++      <line>...</line>
++    </frame>
++  </stack>
++  </first_observed_at>
++</error>
++
++
++initialise a barrier which has threads waiting on it
++<error>
++  <unique>0x........</unique>
++  <tid>...</tid>
++  <kind>BarrierErr</kind>
++  <what>Barrier reinitialization: barrier 0x........</what>
++  <stack>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>pthread_barrier_init</fn>
++      <dir>...</dir>
++      <file>drd_pthread_intercepts.c</file>
++      <line>...</line>
++    </frame>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>main</fn>
++      <dir>...</dir>
++      <file>bar_bad.c</file>
++      <line>...</line>
++    </frame>
++  </stack>
++  <first_observed_at>
++    <what>barrier</what>
++    <address>0x........</address>
++  <stack>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>pthread_barrier_init</fn>
++      <dir>...</dir>
++      <file>drd_pthread_intercepts.c</file>
++      <line>...</line>
++    </frame>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>main</fn>
++      <dir>...</dir>
++      <file>bar_bad.c</file>
++      <line>...</line>
++    </frame>
++  </stack>
++  </first_observed_at>
++</error>
++
++
++destroy a barrier that has waiting threads
++<error>
++  <unique>0x........</unique>
++  <tid>...</tid>
++  <kind>BarrierErr</kind>
++  <what>Destruction of a barrier with active waiters: barrier 0x........</what>
++  <stack>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>pthread_barrier_destroy</fn>
++      <dir>...</dir>
++      <file>drd_pthread_intercepts.c</file>
++      <line>...</line>
++    </frame>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>main</fn>
++      <dir>...</dir>
++      <file>bar_bad.c</file>
++      <line>...</line>
++    </frame>
++  </stack>
++  <first_observed_at>
++    <what>barrier</what>
++    <address>0x........</address>
++  <stack>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>pthread_barrier_init</fn>
++      <dir>...</dir>
++      <file>drd_pthread_intercepts.c</file>
++      <line>...</line>
++    </frame>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>main</fn>
++      <dir>...</dir>
++      <file>bar_bad.c</file>
++      <line>...</line>
++    </frame>
++  </stack>
++  </first_observed_at>
++</error>
++
++
++destroy a barrier that was never initialised
++<error>
++  <unique>0x........</unique>
++  <tid>...</tid>
++  <kind>GenericErr</kind>
++  <what>Not a barrier</what>
++  <stack>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>pthread_barrier_destroy</fn>
++      <dir>...</dir>
++      <file>drd_pthread_intercepts.c</file>
++      <line>...</line>
++    </frame>
++    <frame>
++      <ip>0x........</ip>
++      <obj>...</obj>
++      <fn>main</fn>
++      <dir>...</dir>
++      <file>bar_bad.c</file>
++      <line>...</line>
++    </frame>
++  </stack>
++</error>
++
++
++<status>
++  <state>FINISHED</state>
++  <time>...</time>
++</status>
++
++<errorcounts>
++  <pair>
++    <count>...</count>
++    <unique>0x........</unique>
++  </pair>
++  <pair>
++    <count>...</count>
++    <unique>0x........</unique>
++  </pair>
++  <pair>
++    <count>...</count>
++    <unique>0x........</unique>
++  </pair>
++  <pair>
++    <count>...</count>
++    <unique>0x........</unique>
++  </pair>
++  <pair>
++    <count>...</count>
++    <unique>0x........</unique>
++  </pair>
++</errorcounts>
++
++<suppcounts>...</suppcounts>
++
++</valgrindoutput>
++
+diff --git a/helgrind/tests/Makefile.am b/helgrind/tests/Makefile.am
+index 8a0d6e6..df82169 100644
+--- a/helgrind/tests/Makefile.am
++++ b/helgrind/tests/Makefile.am
+@@ -19,6 +19,7 @@ EXTRA_DIST = \
+ 	cond_timedwait_test.vgtest cond_timedwait_test.stdout.exp \
+ 		cond_timedwait_test.stderr.exp \
+ 	bar_bad.vgtest bar_bad.stdout.exp bar_bad.stderr.exp \
++		bar_bad.stderr.exp-destroy-hang \
+ 	bar_trivial.vgtest bar_trivial.stdout.exp bar_trivial.stderr.exp \
+ 	free_is_write.vgtest free_is_write.stdout.exp \
+ 		free_is_write.stderr.exp \
+diff --git a/helgrind/tests/bar_bad.c b/helgrind/tests/bar_bad.c
+index dd6079c..424ae2f 100644
+--- a/helgrind/tests/bar_bad.c
++++ b/helgrind/tests/bar_bad.c
+@@ -15,23 +15,27 @@ void* child1 ( void* arg )
+    return NULL;
+ }
+ 
++void *sleep1 ( void* arg )
++{
++   /* Long sleep, we hope to never trigger. */
++   sleep (6);
++   pthread_barrier_wait ( (pthread_barrier_t*)arg );
++   return NULL;
++}
++
++void *exit1 ( void* arg )
++{
++   /* Sleep a bit, then exit, we are done. */
++   sleep (1);
++   exit (0);
++   return NULL;
++}
++
+ int main ( void )
+ {
+   pthread_barrier_t *bar1, *bar2, *bar3, *bar4, *bar5;
+-  pthread_t thr1, thr2;
+   int r;
+-
+-  /* possibly set up a watchdog timer thread here. */
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
++  pthread_t thr1, thr2, slp1, slp2, ext1;
+ 
+   /* initialise a barrier with a zero count */
+   fprintf(stderr, "\ninitialise a barrier with zero count\n");
+@@ -49,6 +53,9 @@ int main ( void )
+   fprintf(stderr, "\ninitialise a barrier which has threads waiting on it\n");
+   bar3 = malloc(sizeof(pthread_barrier_t));
+   pthread_barrier_init(bar3, NULL, 2);
++  /* create a thread, whose purpose is to "unblock" the barrier after
++     some sleeping in case it keeps being blocked.  */
++  pthread_create(&slp1, NULL, sleep1, (void*)bar3);
+   /* create a thread, whose only purpose is to block on the barrier */
+   pthread_create(&thr1, NULL, child1, (void*)bar3);
+   /* guarantee that it gets there first */
+@@ -61,6 +68,12 @@ int main ( void )
+   /* once again, create a thread, whose only purpose is to block. */
+   bar4 = malloc(sizeof(pthread_barrier_t));
+   pthread_barrier_init(bar4, NULL, 2);
++  /* create a thread, whose purpose is to "unblock" the barrier after
++     some sleeping in case it keeps being blocked. We hope it isn't
++     needed, but if it is, because pthread_barier_destroy hangs
++     and we will get an extra warning about the barrier being already
++     destroyed. */
++  pthread_create(&slp2, NULL, sleep1, (void*)bar4);
+   /* create a thread, whose only purpose is to block on the barrier */
+   pthread_create(&thr2, NULL, child1, (void*)bar4);
+   /* guarantee that it gets there first */
+@@ -70,13 +83,16 @@ int main ( void )
+ 
+   /* destroy a barrier that was never initialised.  This is a bit
+      tricky, in that we have to fill the barrier with bytes which
+-     ensure that the pthread_barrier_destroy call doesn't hang for
+-     some reason.  Zero-fill seems to work ok on amd64-linux (glibc
++     ensure that the pthread_barrier_destroy call doesn't crash for
++     some reason.  One-fill seems to work ok on amd64-linux (glibc
+      2.8). */
+   fprintf(stderr, "\ndestroy a barrier that was never initialised\n");
++  /* Create a thread that just exits the process after some sleep.
++     We are really done at this point, even if we hang. */
++  pthread_create(&ext1, NULL, exit1, NULL);
+   bar5 = malloc(sizeof(pthread_barrier_t));
+   assert(bar5);
+-  memset(bar5, 0, sizeof(*bar5));
++  memset(bar5, 1, sizeof(*bar5));
+   pthread_barrier_destroy(bar5);
+ 
+   /* now we need to clean up the mess .. */
+@@ -85,5 +101,6 @@ int main ( void )
+ 
+   free(bar1); free(bar2); free(bar3); free(bar4); free(bar5);
+ 
+-  return 0;
++  /* Use exit, we want to kill any "sleeper threads". */
++  exit (0);
+ }
+diff --git a/helgrind/tests/bar_bad.stderr.exp b/helgrind/tests/bar_bad.stderr.exp
+index 74af4fa..d0901b2 100644
+--- a/helgrind/tests/bar_bad.stderr.exp
++++ b/helgrind/tests/bar_bad.stderr.exp
+@@ -8,14 +8,14 @@ Thread #x is the program's root thread
+ 
+ Thread #x: pthread_barrier_init: 'count' argument is zero
+    at 0x........: pthread_barrier_init (hg_intercepts.c:...)
+-   by 0x........: main (bar_bad.c:39)
++   by 0x........: main (bar_bad.c:43)
+ 
+ ----------------------------------------------------------------
+ 
+ Thread #x's call to pthread_barrier_init failed
+    with error code 22 (EINVAL: Invalid argument)
+    at 0x........: pthread_barrier_init (hg_intercepts.c:...)
+-   by 0x........: main (bar_bad.c:39)
++   by 0x........: main (bar_bad.c:43)
+ 
+ 
+ initialise a barrier twice
+@@ -23,7 +23,7 @@ initialise a barrier twice
+ 
+ Thread #x: pthread_barrier_init: barrier is already initialised
+    at 0x........: pthread_barrier_init (hg_intercepts.c:...)
+-   by 0x........: main (bar_bad.c:45)
++   by 0x........: main (bar_bad.c:49)
+ 
+ 
+ initialise a barrier which has threads waiting on it
+@@ -31,13 +31,13 @@ initialise a barrier which has threads waiting on it
+ 
+ Thread #x: pthread_barrier_init: barrier is already initialised
+    at 0x........: pthread_barrier_init (hg_intercepts.c:...)
+-   by 0x........: main (bar_bad.c:57)
++   by 0x........: main (bar_bad.c:64)
+ 
+ ----------------------------------------------------------------
+ 
+ Thread #x: pthread_barrier_init: threads are waiting at barrier
+    at 0x........: pthread_barrier_init (hg_intercepts.c:...)
+-   by 0x........: main (bar_bad.c:57)
++   by 0x........: main (bar_bad.c:64)
+ 
+ 
+ destroy a barrier that has waiting threads
+@@ -45,14 +45,14 @@ destroy a barrier that has waiting threads
+ 
+ Thread #x: pthread_barrier_destroy: threads are waiting at barrier
+    at 0x........: pthread_barrier_destroy (hg_intercepts.c:...)
+-   by 0x........: main (bar_bad.c:69)
++   by 0x........: main (bar_bad.c:82)
+ 
+ ----------------------------------------------------------------
+ 
+ Thread #x's call to pthread_barrier_destroy failed
+    with error code 16 (EBUSY: Device or resource busy)
+    at 0x........: pthread_barrier_destroy (hg_intercepts.c:...)
+-   by 0x........: main (bar_bad.c:69)
++   by 0x........: main (bar_bad.c:82)
+ 
+ 
+ destroy a barrier that was never initialised
+@@ -60,5 +60,5 @@ destroy a barrier that was never initialised
+ 
+ Thread #x: pthread_barrier_destroy: barrier was never initialised
+    at 0x........: pthread_barrier_destroy (hg_intercepts.c:...)
+-   by 0x........: main (bar_bad.c:80)
++   by 0x........: main (bar_bad.c:96)
+ 
+diff --git a/helgrind/tests/bar_bad.stderr.exp-destroy-hang b/helgrind/tests/bar_bad.stderr.exp-destroy-hang
+new file mode 100644
+index 0000000..ddf5624
+--- /dev/null
++++ b/helgrind/tests/bar_bad.stderr.exp-destroy-hang
+@@ -0,0 +1,72 @@
++
++initialise a barrier with zero count
++---Thread-Announcement------------------------------------------
++
++Thread #x is the program's root thread
++
++----------------------------------------------------------------
++
++Thread #x: pthread_barrier_init: 'count' argument is zero
++   at 0x........: pthread_barrier_init (hg_intercepts.c:...)
++   by 0x........: main (bar_bad.c:43)
++
++----------------------------------------------------------------
++
++Thread #x's call to pthread_barrier_init failed
++   with error code 22 (EINVAL: Invalid argument)
++   at 0x........: pthread_barrier_init (hg_intercepts.c:...)
++   by 0x........: main (bar_bad.c:43)
++
++
++initialise a barrier twice
++----------------------------------------------------------------
++
++Thread #x: pthread_barrier_init: barrier is already initialised
++   at 0x........: pthread_barrier_init (hg_intercepts.c:...)
++   by 0x........: main (bar_bad.c:49)
++
++
++initialise a barrier which has threads waiting on it
++----------------------------------------------------------------
++
++Thread #x: pthread_barrier_init: barrier is already initialised
++   at 0x........: pthread_barrier_init (hg_intercepts.c:...)
++   by 0x........: main (bar_bad.c:64)
++
++----------------------------------------------------------------
++
++Thread #x: pthread_barrier_init: threads are waiting at barrier
++   at 0x........: pthread_barrier_init (hg_intercepts.c:...)
++   by 0x........: main (bar_bad.c:64)
++
++
++destroy a barrier that has waiting threads
++----------------------------------------------------------------
++
++Thread #x: pthread_barrier_destroy: threads are waiting at barrier
++   at 0x........: pthread_barrier_destroy (hg_intercepts.c:...)
++   by 0x........: main (bar_bad.c:82)
++
++---Thread-Announcement------------------------------------------
++
++Thread #x was created
++   ...
++   by 0x........: pthread_create@* (hg_intercepts.c:...)
++   by 0x........: main (bar_bad.c:76)
++
++----------------------------------------------------------------
++
++Thread #x: pthread_barrier_wait: barrier is uninitialised
++   at 0x........: pthread_barrier_wait (hg_intercepts.c:...)
++   by 0x........: sleep1 (bar_bad.c:22)
++   by 0x........: mythread_wrapper (hg_intercepts.c:...)
++   ...
++
++
++destroy a barrier that was never initialised
++----------------------------------------------------------------
++
++Thread #x: pthread_barrier_destroy: barrier was never initialised
++   at 0x........: pthread_barrier_destroy (hg_intercepts.c:...)
++   by 0x........: main (bar_bad.c:96)
++
+diff -ur valgrind-3.11.0.orig/drd/tests/Makefile.in valgrind-3.11.0/drd/tests/Makefile.in
+--- valgrind-3.11.0.orig/drd/tests/Makefile.in	2016-01-25 21:16:13.095563405 +0100
++++ valgrind-3.11.0/drd/tests/Makefile.in	2016-01-25 21:17:33.386330569 +0100
+@@ -1084,8 +1084,10 @@
+ 	atomic_var.stderr.exp			    \
+ 	atomic_var.vgtest			    \
+ 	bar_bad.stderr.exp			    \
++	bar_bad.stderr.exp-nohang		    \
+ 	bar_bad.vgtest				    \
+ 	bar_bad_xml.stderr.exp			    \
++	bar_bad_xml.stderr.exp-nohang		    \
+ 	bar_bad_xml.vgtest			    \
+ 	bar_trivial.stderr.exp			    \
+ 	bar_trivial.stdout.exp			    \
+diff -ur valgrind-3.11.0.orig/helgrind/tests/Makefile.in valgrind-3.11.0/helgrind/tests/Makefile.in
+--- valgrind-3.11.0.orig/helgrind/tests/Makefile.in	2016-01-25 21:16:12.883564020 +0100
++++ valgrind-3.11.0/helgrind/tests/Makefile.in	2016-01-25 21:17:34.266328017 +0100
+@@ -835,6 +835,7 @@
+ 	cond_timedwait_test.vgtest cond_timedwait_test.stdout.exp \
+ 		cond_timedwait_test.stderr.exp \
+ 	bar_bad.vgtest bar_bad.stdout.exp bar_bad.stderr.exp \
++		bar_bad.stderr.exp-destroy-hang \
+ 	bar_trivial.vgtest bar_trivial.stdout.exp bar_trivial.stderr.exp \
+ 	free_is_write.vgtest free_is_write.stdout.exp \
+ 		free_is_write.stderr.exp \
