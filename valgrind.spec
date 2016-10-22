@@ -3,7 +3,7 @@
 Summary: Tool for finding memory management bugs in programs
 Name: %{?scl_prefix}valgrind
 Version: 3.11.0
-Release: 25%{?dist}
+Release: 26%{?dist}
 Epoch: 1
 License: GPLv2+
 URL: http://www.valgrind.org/
@@ -335,6 +335,8 @@ touch none/tests/ppoll_alarm.stderr.exp
 touch none/tests/ppoll_alarm.stdout.exp
 touch none/tests/pselect_alarm.stderr.exp
 touch none/tests/pselect_alarm.stdout.exp
+touch none/tests/pselect_sigmask_null.stderr.exp
+touch none/tests/pselect_sigmask_null.stdout.exp
 
 %patch24 -p1
 
@@ -571,7 +573,7 @@ fi
 %endif
 
 %changelog
-* Fri Jul 22 2016 Mark Wielaard <mjw@redhat.com> - 3.11.0-25
+* Fri Jul 22 2016 Mark Wielaard <mjw@redhat.com> - 3.11.0-26
 - Rebase against fedora package:
   - Only build valgrind-openmpi when not creating a software collection.
   - No support for multilib on secondary arches when creating scl.
