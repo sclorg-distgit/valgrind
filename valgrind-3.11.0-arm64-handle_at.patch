@@ -1,0 +1,31 @@
+commit 4eec8a00bed541842afbed7e1f95551b0c786570
+Author: mjw <mjw@a5019735-40e9-0310-863c-91ae7b9d1cf9>
+Date:   Mon May 30 14:17:25 2016 +0000
+
+    Bug #363705 arm64 missing syscall name_to_handle_at and open_by_handle_at
+    
+    git-svn-id: svn://svn.valgrind.org/valgrind/trunk@15887 a5019735-40e9-0310-863c-91ae7b9d1cf9
+
+diff --git a/coregrind/m_syswrap/syswrap-arm64-linux.c b/coregrind/m_syswrap/syswrap-arm64-linux.c
+index 0b78f20..8842765 100644
+--- a/coregrind/m_syswrap/syswrap-arm64-linux.c
++++ b/coregrind/m_syswrap/syswrap-arm64-linux.c
+@@ -1096,6 +1096,9 @@ static SyscallTableEntry syscall_main_table[] = {
+ 
+    GENXY(__NR_wait4,             sys_wait4),             // 260
+ 
++   LINXY(__NR_name_to_handle_at, sys_name_to_handle_at), // 264
++   LINXY(__NR_open_by_handle_at, sys_open_by_handle_at), // 265
++
+    LINX_(__NR_syncfs,            sys_syncfs),            // 267
+ 
+    LINXY(__NR_sendmmsg,          sys_sendmmsg),          // 269
+@@ -1374,8 +1377,6 @@ static SyscallTableEntry syscall_main_table[] = {
+ //ZZ    LINXY(__NR_epoll_create1,     sys_epoll_create1),    // 357
+ //ZZ    LINXY(__NR_rt_tgsigqueueinfo, sys_rt_tgsigqueueinfo),// 363
+ //ZZ 
+-//ZZ    LINXY(__NR_name_to_handle_at, sys_name_to_handle_at),// 370
+-//ZZ    LINXY(__NR_open_by_handle_at, sys_open_by_handle_at),// 371
+ //ZZ    LINXY(__NR_clock_adjtime,     sys_clock_adjtime)     // 372
+ };
+ 
