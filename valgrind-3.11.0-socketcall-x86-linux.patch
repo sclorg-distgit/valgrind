@@ -1,0 +1,70 @@
+commit 266d48ed3aa5f5a6c422805d56abc5a32b90c09c
+Author: mjw <mjw@a5019735-40e9-0310-863c-91ae7b9d1cf9>
+Date:   Wed Jan 20 22:24:43 2016 +0000
+
+    Bug #358030 Support direct socket calls on x86 32bit (new in linux 4.3)
+    
+    Patch by ronald.wahl@raritan.com.
+    
+    git-svn-id: svn://svn.valgrind.org/valgrind/trunk@15764 a5019735-40e9-0310-863c-91ae7b9d1cf9
+
+diff --git a/coregrind/m_syswrap/syswrap-x86-linux.c b/coregrind/m_syswrap/syswrap-x86-linux.c
+index 24d7dc1..3c80e6a 100644
+--- a/coregrind/m_syswrap/syswrap-x86-linux.c
++++ b/coregrind/m_syswrap/syswrap-x86-linux.c
+@@ -1824,8 +1824,23 @@ static SyscallTableEntry syscall_table[] = {
+ //   LIN__(__NR_seccomp,           sys_ni_syscall),       // 354
+ 
+    LINXY(__NR_getrandom,         sys_getrandom),        // 355
+-   LINXY(__NR_memfd_create,      sys_memfd_create)      // 356
+-//   LIN__(__NR_bpf,               sys_ni_syscall)        // 357
++   LINXY(__NR_memfd_create,      sys_memfd_create),     // 356
++//   LIN__(__NR_bpf,               sys_ni_syscall),       // 357
++   LINXY(__NR_socket,            sys_socket),           // 359
++   LINXY(__NR_socketpair,        sys_socketpair),       // 360
++   LINX_(__NR_bind,              sys_bind),             // 361
++   LINX_(__NR_connect,           sys_connect),          // 362
++   LINX_(__NR_listen,            sys_listen),           // 363
++   LINXY(__NR_accept4,           sys_accept4),          // 364
++   LINXY(__NR_getsockopt,        sys_getsockopt),       // 365
++   LINX_(__NR_setsockopt,        sys_setsockopt),       // 366
++   LINXY(__NR_getsockname,       sys_getsockname),      // 367
++   LINXY(__NR_getpeername,       sys_getpeername),      // 368
++   LINX_(__NR_sendto,            sys_sendto),           // 369
++   LINX_(__NR_sendmsg,           sys_sendmsg),          // 370
++   LINXY(__NR_recvfrom,          sys_recvfrom),         // 371
++   LINXY(__NR_recvmsg,           sys_recvmsg),          // 372
++   LINX_(__NR_shutdown,          sys_shutdown)          // 373
+ };
+ 
+ SyscallTableEntry* ML_(get_linux_syscall_entry) ( UInt sysno )
+diff --git a/include/vki/vki-scnums-x86-linux.h b/include/vki/vki-scnums-x86-linux.h
+index 5479b3e..a4e75a7 100644
+--- a/include/vki/vki-scnums-x86-linux.h
++++ b/include/vki/vki-scnums-x86-linux.h
+@@ -392,6 +392,25 @@
+ #define __NR_getrandom          355
+ #define __NR_memfd_create       356
+ #define __NR_bpf                357
++#define __NR_execveat           358
++#define __NR_socket             359
++#define __NR_socketpair         360
++#define __NR_bind               361
++#define __NR_connect            362
++#define __NR_listen             363
++#define __NR_accept4            364
++#define __NR_getsockopt         365
++#define __NR_setsockopt         366
++#define __NR_getsockname        367
++#define __NR_getpeername        368
++#define __NR_sendto             369
++#define __NR_sendmsg            370
++#define __NR_recvfrom           371
++#define __NR_recvmsg            372
++#define __NR_shutdown           373
++#define __NR_userfaultfd        374
++#define __NR_membarrier         375
++#define __NR_mlock2             376
+ 
+ #endif /* __VKI_SCNUMS_X86_LINUX_H */
+ 
