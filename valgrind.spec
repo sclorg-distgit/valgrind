@@ -3,7 +3,7 @@
 Summary: Tool for finding memory management bugs in programs
 Name: %{?scl_prefix}valgrind
 Version: 3.12.0
-Release: 0.1.BETA1%{?dist}
+Release: 1%{?dist}
 Epoch: 1
 License: GPLv2+
 URL: http://www.valgrind.org/
@@ -51,6 +51,29 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
   %endif
 %endif
 
+# Whether to run the full regtest or only a limited set
+# The full regtest includes gdb_server integration tests.
+# On arm the gdb integration tests hang for unknown reasons.
+# On rhel6 the gdb_server tests hang.
+# On rhel7 they hang on ppc64 and ppc64le.
+%ifarch %{arm}
+  %global run_full_regtest 0
+%else
+  %if 0%{?rhel} == 6
+    %global run_full_regtest 0
+  %else
+    %if 0%{?rhel} == 7
+      %ifarch ppc64 ppc64le
+        %global run_full_regtest 0
+      %else
+        %global run_full_regtest 1
+      %endif
+    %else
+      %global run_full_regtest 1
+    %endif
+  %endif
+%endif
+
 # Generating minisymtabs doesn't really work for the staticly linked
 # tools. Note (below) that we don't strip the vgpreload libraries at all
 # because valgrind might read and need the debuginfo in those (client)
@@ -58,8 +81,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 # So those will already have their full symbol table.
 %undefine _include_minidebuginfo
 
-#Source0: http://www.valgrind.org/downloads/valgrind-%{version}.tar.bz2
-Source0: valgrind-3.12.0.BETA1.tar.bz2
+Source0: http://www.valgrind.org/downloads/valgrind-%{version}.tar.bz2
 
 # Needs investigation and pushing upstream
 Patch1: valgrind-3.9.0-cachegrind-improvements.patch
@@ -69,6 +91,9 @@ Patch2: valgrind-3.9.0-helgrind-race-supp.patch
 
 # Make ld.so supressions slightly less specific.
 Patch3: valgrind-3.9.0-ldso-supp.patch
+
+# KDE#371396 - workaround helgrind and drd pth_cond_destroy_busy testcase hangs
+Patch4: valgrind-3.12.0-skip-cond-var.patch
 
 %if %{build_multilib}
 # Ensure glibc{,-devel} is installed for both multilib arches
@@ -183,11 +208,12 @@ Valgrind User Manual for details.
 %endif
 
 %prep
-%setup -q -n %{?scl:%{pkg_name}}%{!?scl:%{name}}-%{version}.BETA1
+%setup -q -n %{?scl:%{pkg_name}}%{!?scl:%{name}}-%{version}
 
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
+%patch4 -p1
 
 %build
 # We need to use the software collection compiler and binutils if available.
@@ -309,24 +335,16 @@ cat /proc/cpuinfo
 
 # Build the test files with the software collection compiler if available.
 %{?scl:PATH=%{_bindir}${PATH:+:${PATH}}}
-# Make sure no extra CFLAGS leak through, the testsuite sets all flags
-# necessary. See also configure above.
-make %{?_smp_mflags} CFLAGS="" check || :
+# Make sure no extra CFLAGS, CXXFLAGS or LDFLAGS leak through,
+# the testsuite sets all flags necessary. See also configure above.
+make %{?_smp_mflags} CFLAGS="" CXXFLAGS="" LDFLAGS="" check
 
 echo ===============TESTING===================
-# On arm the gdb integration tests hang for unknown reasons.
-# When building a scl we might pick a bad gdb.
-# Only run the main tools tests.
-# Recent GDB crashes on the gdb_server tests. Disable everywhere for now.
-#%ifarch %{arm}
-./close_fds make nonexp-regtest || :
-#%else
-#  %if %{is_scl}
-#    ./close_fds make nonexp-regtest || :
-#  %else
-#    ./close_fds make regtest || :
-#  %endif
-#%endif
+%if %{run_full_regtest}
+  ./close_fds make regtest || :
+%else
+  ./close_fds make nonexp-regtest || :
+%endif
 
 # Make sure test failures show up in build.log
 # Gather up the diffs (at most the first 20 lines for each one)
@@ -400,6 +418,22 @@ fi
 %endif
 
 %changelog
+* Fri Oct 21 2016 Mark Wielaard <mjw@redhat.com> - 3.12.0-1
+- Update to valgrind 3.12.0 release.
+
+* Thu Oct 20 2016 Mark Wielaard <mjw@redhat.com> - 3.12.0-0.4-RC2
+- Update to 3.12.0-RC1. Drop integrated patches.
+- Add valgrind-3.12.0-skip-cond-var.patch
+
+* Fri Sep 30 2016 Mark Wielaard <mjw@redhat.com> - 3.12.0-0.3-BETA1
+- Clear CFLAGS, CXXFLAGS and LDFLAGS during make check.
+
+* Thu Sep 29 2016 Mark Wielaard <mjw@redhat.com> - 3.12.0-0.2-BETA1
+- Add valgrind-3.12-beta1-ppc64be.patch. (#1378963)
+- Enable gdb_server tests again. (#1378143)
+- And disable it again on rhel6 (both i686 and x86_64)
+  and rhel7 (ppc64 and ppc64le only) (#1380513)
+
 * Tue Sep 20 2016 Mark Wielaard <mjw@redhat.com> - 3.12.0-0.1-BETA1
 - Update to valgrind 3.12.0 pre-release.
   - Drop upstreamed patches.
