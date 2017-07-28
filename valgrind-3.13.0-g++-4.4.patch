@@ -1,0 +1,30 @@
+commit 0d4a917777828f652fcc8e41c6051100052c9d14
+Author: mjw <mjw@a5019735-40e9-0310-863c-91ae7b9d1cf9>
+Date:   Tue Jun 6 09:03:03 2017 +0000
+
+    Fix pub_tool_basics.h build issue with g++ 4.4.7.
+    
+    g++ 4.4.7 doesn't accept union field initializers:
+    In file included from ../../include/pub_tool_vki.h:50,
+                     from valgrind_cpp_test.cpp:13:
+    ../../include/vki/vki-linux.h: In function ‘vki_cmsghdr* __vki_cmsg_nxthdr(void*, __vki_kernel_size_t, vki_cmsghdr*)’:
+    ../../include/vki/vki-linux.h:673: error: expected primary-expression before ‘.’ token
+    
+    Assign value after declaration which works for any g++ version.
+    
+    git-svn-id: svn://svn.valgrind.org/valgrind/trunk@16437 a5019735-40e9-0310-863c-91ae7b9d1cf9
+
+diff --git a/include/pub_tool_basics.h b/include/pub_tool_basics.h
+index 64e1929..e3af283 100644
+--- a/include/pub_tool_basics.h
++++ b/include/pub_tool_basics.h
+@@ -480,7 +480,8 @@ static inline Bool sr_EQ ( UInt sysno, SysRes sr1, SysRes sr2 ) {
+       union {                                \
+          void *in;                           \
+          D out;                              \
+-      } var = {.in = (void *) (x)}; var.out; \
++      } var;                                 \
++      var.in = (void *) (x); var.out;        \
+    })
+ 
+ // Poor man's static assert
