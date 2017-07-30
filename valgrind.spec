@@ -3,7 +3,7 @@
 Summary: Tool for finding memory management bugs in programs
 Name: %{?scl_prefix}valgrind
 Version: 3.13.0
-Release: 0.1.RC1%{?dist}
+Release: 1%{?dist}
 Epoch: 1
 License: GPLv2+
 URL: http://www.valgrind.org/
@@ -81,7 +81,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 # So those will already have their full symbol table.
 %undefine _include_minidebuginfo
 
-Source0: ftp://sourceware.org/pub/valgrind/valgrind-%{version}.RC1.tar.bz2
+Source0: ftp://sourceware.org/pub/valgrind/valgrind-%{version}.tar.bz2
 
 # Needs investigation and pushing upstream
 Patch1: valgrind-3.9.0-cachegrind-improvements.patch
@@ -91,18 +91,6 @@ Patch2: valgrind-3.9.0-helgrind-race-supp.patch
 
 # Make ld.so supressions slightly less specific.
 Patch3: valgrind-3.9.0-ldso-supp.patch
-
-# KDE#380397 s390x: __GI_strcspn() replacemenet needed
-Patch4: valgrind-3.13.0-s390x-GI-strcspn.patch
-
-# valgrind svn 16437 Fix pub_tool_basics.h build issue with g++ 4.4.7.
-Patch5: valgrind-3.13.0-g++-4.4.patch
-
-# KDE#380200 xtree generated callgrind files refer to files without directory
-Patch6: valgrind-3.13.0-xtree-callgrind.patch
-
-# KDE#380202 Assertion failure for cache line size on aarch64
-Patch7: valgrind-3.13.0-arm-dcache.patch
 
 %if %{build_multilib}
 # Ensure glibc{,-devel} is installed for both multilib arches
@@ -125,7 +113,9 @@ BuildRequires: openmpi-devel >= 1.3.3
 
 # For %%build and %%check.
 # In case of a software collection, pick the matching gdb and binutils.
+%if %{run_full_regtest}
 BuildRequires: %{?scl_prefix}gdb
+%endif
 BuildRequires: %{?scl_prefix}binutils
 
 # gdbserver_tests/filter_make_empty uses ps in test
@@ -220,15 +210,11 @@ Valgrind User Manual for details.
 %endif
 
 %prep
-%setup -q -n %{?scl:%{pkg_name}}%{!?scl:%{name}}-%{version}.RC1
+%setup -q -n %{?scl:%{pkg_name}}%{!?scl:%{name}}-%{version}
 
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
-%patch4 -p1
-%patch5 -p1
-%patch6 -p1
-%patch7 -p1
 
 %build
 # We need to use the software collection compiler and binutils if available.
@@ -341,7 +327,11 @@ chmod 644 $RPM_BUILD_ROOT%{_libdir}/valgrind/vgpreload*-%{valarch}-*so
 %check
 # Make sure some info about the system is in the build.log
 uname -a
-rpm -q glibc gcc %{?scl_prefix}binutils %{?scl_prefix}gdb
+rpm -q glibc gcc %{?scl_prefix}binutils
+%if %{run_full_regtest}
+rpm -q %{?scl_prefix}gdb
+%endif
+
 LD_SHOW_AUXV=1 /bin/true
 cat /proc/cpuinfo
 
@@ -437,6 +427,10 @@ fi
 %endif
 
 %changelog
+* Thu Jun 15 2017 Mark Wielaard <mjw@fedoraproject.org> - 3.13.0-1
+- valgrind 3.13.0 final.
+- Drop all upstreamed patches.
+
 * Tue Jun  6  2017 Mark Wielaard <mjw@fedoraproject.org> - 3.13.0-0.1.RC1
 - Update description as suggested by Ivo Raisr.
 - Workaround gdb/python bug in testsuite (#1434601)
