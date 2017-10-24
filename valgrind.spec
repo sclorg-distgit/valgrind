@@ -3,7 +3,7 @@
 Summary: Tool for finding memory management bugs in programs
 Name: %{?scl_prefix}valgrind
 Version: 3.13.0
-Release: 1%{?dist}
+Release: 4%{?dist}
 Epoch: 1
 License: GPLv2+
 URL: http://www.valgrind.org/
@@ -91,6 +91,32 @@ Patch2: valgrind-3.9.0-helgrind-race-supp.patch
 
 # Make ld.so supressions slightly less specific.
 Patch3: valgrind-3.9.0-ldso-supp.patch
+
+# KDE#381272  ppc64 doesn't compile test_isa_2_06_partx.c without VSX support
+Patch4: valgrind-3.13.0-ppc64-check-no-vsx.patch
+
+# KDE#381289 epoll_pwait can have a NULL sigmask.
+Patch5: valgrind-3.13.0-epoll_pwait.patch
+
+# KDE#381274 powerpc too chatty even with --sigill-diagnostics=no
+Patch6: valgrind-3.13.0-ppc64-diag.patch
+
+# KDE#381556 arm64: Handle feature registers access on 4.11 Linux kernel
+# Workaround that masks CPUID support in HWCAP on aarch64 (#1464211)
+Patch7: valgrind-3.13.0-arm64-hwcap.patch
+
+# RHBZ#1466017 ARM ld.so index warnings.
+# KDE#381805 arm32 needs ld.so index hardwire for new glibc security fixes
+Patch8: valgrind-3.13.0-arm-index-hardwire.patch
+
+# KDE#381769 Use ucontext_t instead of struct ucontext
+Patch9: valgrind-3.13.0-ucontext_t.patch
+
+# valgrind svn r16453 Fix some tests failure with GDB 8.0
+Patch10: valgrind-3.13.0-gdb-8-testfix.patch
+
+# valgrind svn r16454. disable vgdb poll in the child after fork
+Patch11: valgrind-3.13.0-disable-vgdb-child.patch
 
 %if %{build_multilib}
 # Ensure glibc{,-devel} is installed for both multilib arches
@@ -215,6 +241,14 @@ Valgrind User Manual for details.
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
+%patch4 -p1
+%patch5 -p1
+%patch6 -p1
+%patch7 -p1
+%patch8 -p1
+%patch9 -p1
+%patch10 -p1
+%patch11 -p1
 
 %build
 # We need to use the software collection compiler and binutils if available.
@@ -335,8 +369,8 @@ rpm -q %{?scl_prefix}gdb
 LD_SHOW_AUXV=1 /bin/true
 cat /proc/cpuinfo
 
-# Make sure a basic binary runs.
-./vg-in-place /bin/true
+# Make sure a basic binary runs. There should be no errors.
+./vg-in-place --error-exitcode=1 /bin/true
 
 # Build the test files with the software collection compiler if available.
 %{?scl:PATH=%{_bindir}${PATH:+:${PATH}}}
@@ -427,6 +461,17 @@ fi
 %endif
 
 %changelog
+* Thu Aug  3 2017 Mark Wielaard <mjw@redhat.com> - 3.13.0-4
+- Rebase to fedora valgrind version (#1467952)
+  - Add --error-exitcode=1 to /bin/true check.
+  - Add valgrind-3.13.0-arm-index-hardwire.patch
+  - Add valgrind-3.13.0-ucontext_t.patch
+  - Add valgrind-3.13.0-gdb-8-testfix.patch
+  - Add valgrind-3.13.0-disable-vgdb-child.patch
+  - Add valgrind-3.13.0-arm64-hwcap.patch
+  - Add valgrind-3.13.0-epoll_pwait.patch
+  - Add valgrind-3.13.0-ppc64-diag.patch
+
 * Thu Jun 15 2017 Mark Wielaard <mjw@fedoraproject.org> - 3.13.0-1
 - valgrind 3.13.0 final.
 - Drop all upstreamed patches.
