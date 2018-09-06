@@ -3,7 +3,7 @@
 Summary: Tool for finding memory management bugs in programs
 Name: %{?scl_prefix}valgrind
 Version: 3.13.0
-Release: 20%{?dist}
+Release: 26%{?dist}
 Epoch: 1
 License: GPLv2+
 URL: http://www.valgrind.org/
@@ -181,6 +181,16 @@ Patch21: valgrind-3.13.0-build-id-phdrs.patch
 # KDE#368913 WARNING: unhandled arm64-linux syscall: 117 (ptrace)
 Patch22: valgrind-3.13.0-arm64-ptrace.patch
 
+# RHBZ#1600034 KDE#395682
+# Accept read-only PT_LOAD segments and .rodata created by ld -z separate-code.
+Patch23: valgrind-3.13.0-ld-separate-code.patch
+
+# KDE#396887 arch_prctl should return EINVAL on unknown option
+Patch24: valgrind-3.13.0-arch_prctl.patch
+
+# KDE#397012 glibc ld.so uses arch_prctl on i386
+Patch25: valgrind-3.13.0-x86-arch_prctl.patch
+
 %if %{build_multilib}
 # Ensure glibc{,-devel} is installed for both multilib arches
 BuildRequires: /lib/libc.so.6 /usr/lib/libc.so /lib64/libc.so.6 /usr/lib64/libc.so
@@ -218,7 +228,19 @@ BuildRequires: perl(Getopt::Long)
 
 %{?scl:Requires:%scl_runtime}
 
+# We need to fixup selinux file context when doing a scl build.
+# In RHEL6 we might need to fix up the labels even though the
+# meta package sets up a fs equivalence. See post.
+%if 0%{?rhel} == 6
+%{?scl:Requires(post): /sbin/restorecon}
+%endif
+
+# Might be defined in redhat-rpm-config
+%if 0%{?valgrind_arches:1}
+ExclusiveArch: %{valgrind_arches}
+%else
 ExclusiveArch: %{ix86} x86_64 ppc ppc64 ppc64le s390x armv7hl aarch64
+%endif
 %ifarch %{ix86}
 %define valarch x86
 %define valsecarch %{nil}
@@ -323,6 +345,9 @@ Valgrind User Manual for details.
 %patch20 -p1
 %patch21 -p1
 %patch22 -p1
+%patch23 -p1
+%patch24 -p1
+%patch25 -p1
 
 %build
 CC=gcc
@@ -498,7 +523,6 @@ cat diffs
 echo ===============END TESTING===============
 
 %files
-%defattr(-,root,root)
 %doc COPYING NEWS README_*
 %doc docs/installed/html docs/installed/*.pdf
 %{_bindir}/*
@@ -520,7 +544,6 @@ echo ===============END TESTING===============
 %{_mandir}/man1/*
 
 %files devel
-%defattr(-,root,root)
 %dir %{_includedir}/valgrind
 %{_includedir}/valgrind/valgrind.h
 %{_includedir}/valgrind/callgrind.h
@@ -541,13 +564,44 @@ echo ===============END TESTING===============
 
 %if %{build_openmpi}
 %files openmpi
-%defattr(-,root,root)
 %dir %{_libdir}/valgrind
 %{_libdir}/openmpi/valgrind/libmpiwrap*.so
 %{_libdir}/valgrind/libmpiwrap*.so
 %endif
 
+%if 0%{?rhel} == 6
+%post
+# There is a bug in rpm (rhbz#214737) that might cause post to be run
+# even thought the binary isn't installed when installing two multilib
+# versions at the same time.
+if [ -x %{_bindir}/valgrind ]; then
+# On RHEL6 the fs equivalency should be setup by the devtoolset meta
+# package, but because of a rpm bug (rhbz#924044) it might not work.
+%{?scl:/sbin/restorecon %{_bindir}/valgrind}%{!?scl:true}
+fi
+%endif
+
 %changelog
+* Fri Aug  3 2018 Mark Wielaard  <mjw@fedoraproject.org> - 3.13.0-26
+- Use valgrind_arches for ExclusiveArch when defined.
+- Use restorecon for scl on rhel6 to work around rpm bug (#1610676).
+
+* Tue Jul 31 2018 Mark Wielaard  <mjw@fedoraproject.org> - 3.13.0-25
+- Add valgrind-3.13.0-x86-arch_prctl.patch (#1610304)
+
+* Mon Jul 30 2018 Florian Weimer <fweimer@redhat.com> - 3.13.0-24
+- Rebuild with fixed binutils
+
+* Fri Jul 27 2018 Mark Wielaard <mjw@fedoraproject.org> - 3.13.0-23
+- Remove valgrind-3.13.0-arm-disable-vfp-test.patch
+
+* Thu Jul 26 2018 Mark Wielaard <mjw@fedoraproject.org> - 3.13.0-22
+- Add valgrind-3.13.0-arch_prctl.patch (#1608824)
+
+* Thu Jul 12 2018 Mark Wielaard <mjw@fedoraproject.org> - 3.13.0-21
+- Add valgrind-3.13.0-separate-code.patch (#1600034)
+- Add valgrind-3.13.0-arm-disable-vfp-test.patch
+
 * Thu Jul  5 2018 Mark Wielaard <mjw@fedoraproject.org> - 3.13.0-20
 - Don't try a full_regtest under scl, also don't adjust PATH.
 
