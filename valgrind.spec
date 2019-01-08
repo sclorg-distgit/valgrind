@@ -2,8 +2,8 @@
 
 Summary: Tool for finding memory management bugs in programs
 Name: %{?scl_prefix}valgrind
-Version: 3.13.0
-Release: 26%{?dist}
+Version: 3.14.0
+Release: 0.1.GIT.bs1%{?dist}
 Epoch: 1
 License: GPLv2+
 URL: http://www.valgrind.org/
@@ -100,7 +100,9 @@ Group: Development/Debuggers
 # So those will already have their full symbol table.
 %undefine _include_minidebuginfo
 
-Source0: ftp://sourceware.org/pub/valgrind/valgrind-%{version}.tar.bz2
+# Source0: ftp://sourceware.org/pub/valgrind/valgrind-%{version}.tar.bz2
+# commit 5d41dadeb3cb805546497b350750ca3bee365210
+Source0: valgrind-3.14.0.GIT.tar.bz2
 
 # Needs investigation and pushing upstream
 Patch1: valgrind-3.9.0-cachegrind-improvements.patch
@@ -111,85 +113,9 @@ Patch2: valgrind-3.9.0-helgrind-race-supp.patch
 # Make ld.so supressions slightly less specific.
 Patch3: valgrind-3.9.0-ldso-supp.patch
 
-# KDE#381272  ppc64 doesn't compile test_isa_2_06_partx.c without VSX support
-Patch4: valgrind-3.13.0-ppc64-check-no-vsx.patch
-
-# KDE#381289 epoll_pwait can have a NULL sigmask.
-Patch5: valgrind-3.13.0-epoll_pwait.patch
-
-# KDE#381274 powerpc too chatty even with --sigill-diagnostics=no
-Patch6: valgrind-3.13.0-ppc64-diag.patch
-
-# KDE#381556 arm64: Handle feature registers access on 4.11 Linux kernel
-# Workaround that masks CPUID support in HWCAP on aarch64 (#1464211)
-Patch7: valgrind-3.13.0-arm64-hwcap.patch
-
-# RHBZ#1466017 ARM ld.so index warnings.
-# KDE#381805 arm32 needs ld.so index hardwire for new glibc security fixes
-Patch8: valgrind-3.13.0-arm-index-hardwire.patch
-
-# KDE#381769 Use ucontext_t instead of struct ucontext
-Patch9: valgrind-3.13.0-ucontext_t.patch
-
-# valgrind svn r16453 Fix some tests failure with GDB 8.0
-Patch10: valgrind-3.13.0-gdb-8-testfix.patch
-
-# valgrind svn r16454. disable vgdb poll in the child after fork
-Patch11: valgrind-3.13.0-disable-vgdb-child.patch
-
-# KDE#382998 xml-socket doesn't work
-Patch12: valgrind-3.13.0-xml-socket.patch
-
-# KDE#385334
-# PPC64, vpermr, xxperm, xxpermr fix Iop_Perm8x16 selector field
-# PPC64, revert the change to vperm instruction.
-# KDE#385183
-# PPC64, Add support for xscmpeqdp, xscmpgtdp, xscmpgedp, xsmincdp instructions
-# PPC64, Fix bug in vperm instruction.
-# KDE#385210
-# PPC64, Re-implement the vpermr instruction using the Iop_Perm8x16.
-# KDE#385208
-# PPC64, Use the vperm code to implement the xxperm inst.
-# PPC64, Replace body of generate_store_FPRF with C helper function.
-# PPC64, Add support for the Data Stream Control Register (DSCR)
-Patch13: valgrind-3.13.0-ppc64-vex-fixes.patch
-
-# Fix eflags handling in amd64 instruction tests
-Patch14: valgrind-3.13.0-amd64-eflags-tests.patch
-
-# KDE#385868 ld.so _dl_runtime_resolve_avx_slow conditional jump warning
-Patch15: valgrind-3.13.0-suppress-dl-trampoline-sse-avx.patch
-
-# Implement static TLS code for more platforms
-Patch16: valgrind-3.13.0-static-tls.patch
-
-# KDE#386397 PPC64 valgrind truncates powerpc timebase to 32-bits.
-Patch17: valgrind-3.13.0-ppc64-timebase.patch
-
-# KDE#387773 - Files in .gnu_debugaltlink should be resolved relative to .debug
-Patch18: valgrind-3.13.0-debug-alt-file.patch
-
-# KDE#387712 s390x cgijnl reports Conditional jump depends on uninit value
-Patch19: valgrind-3.13.0-s390-cgijnl.patch
-
-# KDE#391164 constraint bug in tests/ppc64/test_isa_2_07_part1.c for mtfprwa
-Patch20: valgrind-3.13.0-ppc64-mtfprwa-constraint.patch
-
-# KDE#393062 Reading build-id ELF note "debuginfo reader: ensure_valid failed"
-Patch21: valgrind-3.13.0-build-id-phdrs.patch
-
-# KDE#368913 WARNING: unhandled arm64-linux syscall: 117 (ptrace)
-Patch22: valgrind-3.13.0-arm64-ptrace.patch
-
-# RHBZ#1600034 KDE#395682
-# Accept read-only PT_LOAD segments and .rodata created by ld -z separate-code.
-Patch23: valgrind-3.13.0-ld-separate-code.patch
-
-# KDE#396887 arch_prctl should return EINVAL on unknown option
-Patch24: valgrind-3.13.0-arch_prctl.patch
-
-# KDE#397012 glibc ld.so uses arch_prctl on i386
-Patch25: valgrind-3.13.0-x86-arch_prctl.patch
+# Missing file for s390x testsuite.
+# Upstream commit 4f5e6168e75a1915a6a27e7068aef04d670aeb7e
+Patch4: valgrind-3.14.0-add-vector-h.patch
 
 %if %{build_multilib}
 # Ensure glibc{,-devel} is installed for both multilib arches
@@ -321,33 +247,12 @@ Valgrind User Manual for details.
 %endif
 
 %prep
-%setup -q -n %{?scl:%{pkg_name}}%{!?scl:%{name}}-%{version}
+%setup -q -n %{?scl:%{pkg_name}}%{!?scl:%{name}}-%{version}.GIT
 
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
 %patch4 -p1
-%patch5 -p1
-%patch6 -p1
-%patch7 -p1
-%patch8 -p1
-%patch9 -p1
-%patch10 -p1
-%patch11 -p1
-%patch12 -p1
-%patch13 -p1
-%patch14 -p1
-%patch15 -p1
-%patch16 -p1
-%patch17 -p1
-%patch18 -p1
-%patch19 -p1
-%patch20 -p1
-%patch21 -p1
-%patch22 -p1
-%patch23 -p1
-%patch24 -p1
-%patch25 -p1
 
 %build
 CC=gcc
@@ -582,6 +487,10 @@ fi
 %endif
 
 %changelog
+* Fri Sep 14 2018 Mark Wielaard  <mjw@redhat.com> - 3.14.0-0.1.GIT
+- New upstream (pre-)release.
+- Add valgrind-3.14.0-add-vector-h.patch.
+
 * Fri Aug  3 2018 Mark Wielaard  <mjw@fedoraproject.org> - 3.13.0-26
 - Use valgrind_arches for ExclusiveArch when defined.
 - Use restorecon for scl on rhel6 to work around rpm bug (#1610676).
